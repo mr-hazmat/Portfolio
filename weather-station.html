@@ -106,6 +106,123 @@
     
     <section id="indepth-section">
     <h2>Explanation</h2>
+      <p>
+        Components:
+          1x Arduino UNO
+          1x 16x2 LCD
+          1x BME280 sensor
+          1x Potentiometer
+          1x 10KΩ Resistor
+        
+        Arduino Pin Connections:
+          2, 3, 4, and 5 connect to the LCD's pins DB7, DB6, DB5, and DB4 respectively;
+          11 connects to LCD pin E;
+          12 connects to LCD pin RS; and
+          A4 and A5 connect to the BME280 pins SDA and SCL respectively.
+        
+        Code:
+          <code>
+            #include <Wire.h>
+            #include <SPI.h>
+            #include <Adafruit_Sensor.h>
+            #include <Adafruit_BME280.h>
+            #include <LiquidCrystal.h>
+            
+            #define SEALEVELPRESSURE_HPA (1013.25)
+            
+            Adafruit_BME280 bme;
+            
+            unsigned long delayTime;
+            
+            const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+            LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+            
+            void setup() {
+              Serial.begin(9600);
+              Serial.println(F("-- Weather Station Ver. 1.0.0 --"));
+            
+              // set up the LCD's number of columns and rows:
+              lcd.begin(16, 2);
+              // Print a message to the LCD.
+              lcd.print("Weather Station");
+              lcd.setCursor(0,1);
+              lcd.print("Ver. 1.0.0");
+              
+              for (int i = 0; i < 3; i++) {
+              delay(500);
+              lcd.clear();
+              lcd.print("Loading.");
+              delay(500);
+              lcd.clear();
+              lcd.print("Loading..");
+              delay(500);
+              lcd.clear();
+              lcd.print("Loading...");
+              }
+            
+              bool status;
+              status = bme.begin(0x76);  
+              if (!status) {
+                Serial.println("Could not find BME280 sensor");
+                while (1);
+              }
+              
+              delayTime = 3000;
+            
+              Serial.println();
+            }
+            
+            
+            void loop() { 
+              printValues();
+            
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Temperature:");
+              lcd.setCursor(0,1);
+              lcd.print(String(bme.readTemperature()) + " C, ");
+              lcd.print(String(1.8 * bme.readTemperature() + 32) + " F");
+              
+              delay(delayTime);
+            
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Pressure:");
+              lcd.setCursor(0,1);
+              lcd.print(String(bme.readPressure() / 100.0F) + " hPa");
+            
+              delay(delayTime);
+            
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Humidity:");
+              lcd.setCursor(0,1);
+              lcd.print(String(bme.readHumidity()) + "%");
+            
+              delay(delayTime);
+            }
+            
+            
+            void printValues() {
+              Serial.print("Temperature = ");
+              Serial.print(bme.readTemperature());
+              Serial.print("˚C, ");
+              Serial.print(1.8 * bme.readTemperature() + 32);
+              Serial.println("˚F");
+              
+              Serial.print("Pressure = ");
+              Serial.print(bme.readPressure() / 100.0F);
+              Serial.println(" hPa");
+              
+              Serial.print("Humidity = ");
+              Serial.print(bme.readHumidity());
+              Serial.println(" %");
+              
+              Serial.println();
+            }
+          </code>
+        
+      </p>
     </section>
     
     <section id="images-section">
