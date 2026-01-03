@@ -89,8 +89,8 @@
 </head>
 <body>
   <header>
-    <a href="index.html">← Back to projects</a>
-    <h1 id="title">Project Title</h1>
+    <a href="mr-hazmat.github.io/Portfolio/index.html">← Back to projects</a>
+    <h1 id="title">Arduino Weather Station</h1>
   </header>
 
   <main>
@@ -111,65 +111,6 @@
         <div class="placeholder">Screenshot</div>
       </div>
     </section>
-
-    <section id="links-section">
-      <h2>Links</h2>
-      <div class="links" id="links"></div>
-    </section>
   </main>
-
-  <script>
-    const projects = {
-      portfolio: {
-        title: "Minimal Portfolio",
-        description:
-          "A lightweight portfolio website designed with a focus on readability, performance, and simplicity. Built without frameworks to ensure fast load times and full control over layout and styling.",
-        technologies: ["HTML", "CSS", "Responsive Design"],
-        links: [
-          { label: "GitHub", url: "#" },
-          { label: "Live Demo", url: "#" }
-        ]
-      },
-      dashboard: {
-        title: "Analytics Dashboard",
-        description:
-          "A clean dashboard interface that presents complex data in a clear and structured way. Emphasis on layout consistency, spacing, and responsive behavior.",
-        technologies: ["HTML", "CSS Grid", "JavaScript"],
-        links: [{ label: "GitHub", url: "#" }]
-      },
-      landing: {
-        title: "Product Landing Page",
-        description:
-          "A minimal product landing page designed to communicate value quickly. Focused on typography, spacing, and clear calls to action.",
-        technologies: ["HTML", "CSS"],
-        links: [{ label: "Live Demo", url: "#" }]
-      }
-    };
-
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get("project");
-    const project = projects[key];
-
-    if (project) {
-      document.title = project.title;
-      document.getElementById("title").textContent = project.title;
-      document.getElementById("description").textContent = project.description;
-
-      const techList = document.getElementById("technologies");
-      project.technologies.forEach((tech) => {
-        const li = document.createElement("li");
-        li.textContent = tech;
-        techList.appendChild(li);
-      });
-
-      const linksContainer = document.getElementById("links");
-      project.links.forEach((link) => {
-        const a = document.createElement("a");
-        a.href = link.url;
-        a.textContent = link.label;
-        linksContainer.appendChild(a);
-      });
-    }
-  </script>
 </body>
 </html>
