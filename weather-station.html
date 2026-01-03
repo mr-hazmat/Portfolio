@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism-solarizedlight.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-cpp.min.js"></script>
   <meta charset="UTF-8" />
@@ -76,7 +76,6 @@
       width: 100%;
       height: auto;
     }
-    }
 
     .links a {
       display: inline-block;
@@ -89,6 +88,36 @@
     .links a:hover {
       text-decoration: underline;
     }
+
+    pre[class*="language-"] {
+  background: #f6f8fa;          /* GitHub-like */
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+code[class*="language-"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+details {
+  margin-top: 0.75rem;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+summary:hover {
+  text-decoration: underline;
+}
+details[open] summary {
+  margin-bottom: 0.75rem;
+}
   </style>
 </head>
 <body>
