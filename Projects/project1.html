@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #666666;
+      --border: #e5e5e5;
+      --accent: #000000;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+
+    header,
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    header a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    h1 {
+      margin-top: 1rem;
+      font-size: 2rem;
+    }
+
+    section {
+      margin-top: 2rem;
+    }
+
+    h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    ul {
+      padding-left: 1.2rem;
+    }
+
+    .screenshots {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .placeholder {
+      border: 1px solid var(--border);
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .links a {
+      display: inline-block;
+      margin-right: 1rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+
+    .links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">← Back to projects</a>
+    <h1 id="title">Project Title</h1>
+  </header>
+
+  <main>
+    <section>
+      <p id="description"></p>
+    </section>
+
+    <section id="tech-section">
+      <h2>Technologies</h2>
+      <ul id="technologies"></ul>
+    </section>
+
+    <section id="screenshots-section">
+      <h2>Screenshots</h2>
+      <div class="screenshots">
+        <div class="placeholder">Screenshot</div>
+        <div class="placeholder">Screenshot</div>
+        <div class="placeholder">Screenshot</div>
+      </div>
+    </section>
+
+    <section id="links-section">
+      <h2>Links</h2>
+      <div class="links" id="links"></div>
+    </section>
+  </main>
+
+  <script>
+    const projects = {
+      portfolio: {
+        title: "Minimal Portfolio",
+        description:
+          "A lightweight portfolio website designed with a focus on readability, performance, and simplicity. Built without frameworks to ensure fast load times and full control over layout and styling.",
+        technologies: ["HTML", "CSS", "Responsive Design"],
+        links: [
+          { label: "GitHub", url: "#" },
+          { label: "Live Demo", url: "#" }
+        ]
+      },
+      dashboard: {
+        title: "Analytics Dashboard",
+        description:
+          "A clean dashboard interface that presents complex data in a clear and structured way. Emphasis on layout consistency, spacing, and responsive behavior.",
+        technologies: ["HTML", "CSS Grid", "JavaScript"],
+        links: [{ label: "GitHub", url: "#" }]
+      },
+      landing: {
+        title: "Product Landing Page",
+        description:
+          "A minimal product landing page designed to communicate value quickly. Focused on typography, spacing, and clear calls to action.",
+        technologies: ["HTML", "CSS"],
+        links: [{ label: "Live Demo", url: "#" }]
+      }
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("project");
+    const project = projects[key];
+
+    if (project) {
+      document.title = project.title;
+      document.getElementById("title").textContent = project.title;
+      document.getElementById("description").textContent = project.description;
+
+      const techList = document.getElementById("technologies");
+      project.technologies.forEach((tech) => {
+        const li = document.createElement("li");
+        li.textContent = tech;
+        techList.appendChild(li);
+      });
+
+      const linksContainer = document.getElementById("links");
+      project.links.forEach((link) => {
+        const a = document.createElement("a");
+        a.href = link.url;
+        a.textContent = link.label;
+        linksContainer.appendChild(a);
+      });
+    }
+  </script>
+</body>
+</html>
