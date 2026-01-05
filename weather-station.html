@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Project</title>
+    <title>Arduino Weather Station</title>
 
     <!-- Prism -->
     <link
@@ -12,6 +12,7 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-cpp.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-python.min.js"></script>
 
     <!-- Site styles -->
     <link rel="stylesheet" href="style.css" />
@@ -27,33 +28,61 @@
       <section id="desc-section">
         <h2>Description</h2>
         <p>
-          I created a simple weather station with an Arduino UNO, a liquid crystal
-          display, and a BME280 environmental sensor. It's currently in version
-          1.0.0, simply returning results to a serial port and displaying them on
-          the LCD, but I plan to update it with more components to add
-          functionalities such as uploading data online to view.
+          This project is a modular Arduino-based weather station that collects
+          temperature, pressure, and humidity data using a BME280 environmental
+          sensor. Readings are displayed locally on a 16×2 LCD while structured
+          sensor data is streamed over the serial port for long-term logging.
+        </p>
+        <p>
+          A Python-based serial logger runs on a host machine, capturing sensor
+          output once per minute, timestamping each entry, and organizing logs
+          into a hierarchical directory structure (year / month / week / day).
+          Log files are committed and pushed to a dedicated GitHub repository
+          every 30 minutes, enabling reliable archival and remote access to
+          historical weather data.
+        </p>
+        <p>
+          <strong>Log Repository:</strong>
+          <a
+            href="https://github.com/YOUR_USERNAME/AWS-Logs"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            github.com/mr-hazmat/AWS-Logs
+          </a>
         </p>
       </section>
 
       <section id="indepth-section">
-        <h2>Explanation</h2>
+        <h2>Technical Overview</h2>
+
         <p>
-          Components:<br />
-          1x Arduino UNO<br />
-          1x 16x2 LCD<br />
-          1x BME280 sensor<br />
-          1x Potentiometer<br />
-          1x 10KΩ Resistor<br />
-          <br />
-          Arduino Pin Connections:<br />
-          2, 3, 4, and 5 connect to the LCD's pins DB7, DB6, DB5, and DB4
-          respectively;<br />
-          11 connects to LCD pin E;<br />
-          12 connects to LCD pin RS; and<br />
-          A4 and A5 connect to the BME280 pins SDA and SCL respectively.<br />
-          <br />
-          Code:
+          <strong>Hardware Components:</strong><br />
+          1× Arduino UNO<br />
+          1× BME280 Temperature / Pressure / Humidity Sensor<br />
+          1× 16×2 Character LCD<br />
+          1× Potentiometer (LCD contrast)<br />
+          1× 10KΩ resistor<br />
         </p>
+
+        <p>
+          <strong>Pin Connections:</strong><br />
+          LCD DB4–DB7 → Arduino pins 5, 4, 3, 2<br />
+          LCD RS → pin 12<br />
+          LCD E → pin 11<br />
+          BME280 SDA/SCL → Arduino A4/A5 (I²C)<br />
+        </p>
+
+        <p>
+          <strong>System Responsibilities:</strong>
+        </p>
+        <ul>
+          <li>Embedded firmware handles real-time sensor readings and LCD updates</li>
+          <li>Host-side logger manages timestamping, persistence, and version control</li>
+          <li>GitHub acts as a remote data archive for long-term storage</li>
+        </ul>
+
+        <h3>Arduino Firmware</h3>
 
         <details>
           <summary>Click to expand</summary>
@@ -65,92 +94,131 @@
 #include &lt;Adafruit_BME280.h&gt;
 #include &lt;LiquidCrystal.h&gt;
 
-#define SEALEVELPRESSURE_HPA (1013.25)
-
 Adafruit_BME280 bme;
 
-unsigned long delayTime;
+unsigned long delayTime = 3000;
+unsigned long lastLogTime = 0;
+const unsigned long LOG_INTERVAL = 60000;
 
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 void setup() {
   Serial.begin(9600);
-  Serial.println(F("-- Weather Station Ver. 1.0.0 --"));
-
   lcd.begin(16, 2);
-  lcd.print("Weather Station");
-  lcd.setCursor(0, 1);
-  lcd.print("Ver. 1.0.0");
 
-  for (int i = 0; i < 3; i++) {
-    delay(500);
-    lcd.clear();
-    lcd.print("Loading.");
-    delay(500);
-    lcd.clear();
-    lcd.print("Loading..");
-    delay(500);
-    lcd.clear();
-    lcd.print("Loading...");
-  }
-
-  bool status = bme.begin(0x76);
-  if (!status) {
-    Serial.println("Could not find BME280 sensor");
+  if (!bme.begin(0x76)) {
     while (1);
   }
-
-  delayTime = 3000;
-  Serial.println();
 }
 
 void loop() {
-  printValues();
+  float tempC = bme.readTemperature();
+  float tempF = tempC * 1.8 + 32;
+  float pressure = bme.readPressure() / 100.0F;
+  float humidity = bme.readHumidity();
 
+  updateLCD(tempC, tempF, pressure, humidity);
+
+  if (millis() - lastLogTime >= LOG_INTERVAL) {
+    lastLogTime = millis();
+    Serial.print(tempC, 2); Serial.print(",");
+    Serial.print(tempF, 2); Serial.print(",");
+    Serial.print(pressure, 2); Serial.print(",");
+    Serial.println(humidity, 2);
+  }
+}
+
+void updateLCD(float tC, float tF, float p, float h) {
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Temperature:");
+  lcd.print("Temp:");
   lcd.setCursor(0, 1);
-  lcd.print(String(bme.readTemperature()) + " C, ");
-  lcd.print(String(1.8 * bme.readTemperature() + 32) + " F");
-
+  lcd.print(tC, 1);
+  lcd.print("C ");
+  lcd.print(tF, 1);
+  lcd.print("F");
   delay(delayTime);
 
   lcd.clear();
-  lcd.setCursor(0, 0);
   lcd.print("Pressure:");
   lcd.setCursor(0, 1);
-  lcd.print(String(bme.readPressure() / 100.0F) + " hPa");
-
+  lcd.print(p, 1);
+  lcd.print(" hPa");
   delay(delayTime);
 
   lcd.clear();
-  lcd.setCursor(0, 0);
   lcd.print("Humidity:");
   lcd.setCursor(0, 1);
-  lcd.print(String(bme.readHumidity()) + "%");
-
+  lcd.print(h, 1);
+  lcd.print("%");
   delay(delayTime);
 }
+          </code></pre>
+        </details>
 
-void printValues() {
-  Serial.print("Temperature = ");
-  Serial.print(bme.readTemperature());
-  Serial.print("˚C, ");
-  Serial.print(1.8 * bme.readTemperature() + 32);
-  Serial.println("˚F");
+        <h3>Serial Logger (Python)</h3>
 
-  Serial.print("Pressure = ");
-  Serial.print(bme.readPressure() / 100.0F);
-  Serial.println(" hPa");
+        <details>
+          <summary>Click to expand</summary>
 
-  Serial.print("Humidity = ");
-  Serial.print(bme.readHumidity());
-  Serial.println(" %");
+          <pre><code class="language-python">
+import serial
+import os
+from datetime import datetime
+import subprocess
+import time
 
-  Serial.println();
-}
+PORT = "/dev/tty.usbmodem1101"
+BAUD = 9600
+LOG_BASE = os.path.expanduser("~/Github Repos/AWS-Logs")
+LOG_INTERVAL = 60
+CSV_HEADER = "temp_c,temp_f,pressure_hpa,humidity"
+
+ser = serial.Serial(PORT, BAUD, timeout=1)
+last_git_push_time = None
+
+print("Weather logger started... Press Ctrl+C to stop.")
+
+try:
+    while True:
+        now = datetime.now()
+        year = str(now.year)
+        month = now.strftime("%m_%B")
+        week = f"Week_{now.isocalendar()[1]:02d}"
+        filename = now.strftime("%Y-%m-%d.txt")
+
+        folder = os.path.join(LOG_BASE, year, month, week)
+        os.makedirs(folder, exist_ok=True)
+        logfile = os.path.join(folder, filename)
+
+        if not os.path.exists(logfile):
+            with open(logfile, "w") as f:
+                f.write(CSV_HEADER + "\n")
+
+        line = ser.readline().decode("utf-8", errors="ignore").strip()
+        if line:
+            with open(logfile, "a") as f:
+                timestamp = now.isoformat(timespec="seconds")
+                f.write(f"{timestamp} {line}\n")
+
+        interval_id = now.strftime("%Y-%m-%d_%H_%M")
+        if now.minute % 30 == 0 and interval_id != last_git_push_time:
+            last_git_push_time = interval_id
+            subprocess.run(["git", "-C", LOG_BASE, "add", "."])
+            subprocess.run([
+                "git", "-C", LOG_BASE,
+                "commit", "-m",
+                f"Automated log update {now.strftime('%Y-%m-%d %H:%M')}"
+            ])
+            subprocess.run(["git", "-C", LOG_BASE, "push"])
+
+        time.sleep(LOG_INTERVAL)
+
+except KeyboardInterrupt:
+    print("\nLogger stopped by user.")
+
+finally:
+    ser.close()
           </code></pre>
         </details>
       </section>
@@ -160,15 +228,15 @@ void printValues() {
         <div class="images">
           <img
             src="resources/arduino-weather-station/AWSTemp.jpg"
-            alt="BME280 Weather Station Temp"
+            alt="Temperature display"
           />
           <img
             src="resources/arduino-weather-station/AWSPres.jpg"
-            alt="BME280 Weather Station Pressure"
+            alt="Pressure display"
           />
           <img
             src="resources/arduino-weather-station/AWSHumi.jpg"
-            alt="BME280 Weather Station Humidity"
+            alt="Humidity display"
           />
         </div>
       </section>
