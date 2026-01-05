@@ -164,16 +164,19 @@ void updateLCD(float tC, float tF, float p, float h) {
           <pre><code class="language-python">
 import serial
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import subprocess
 import time
 import socket
+import tarfile
+import shutil
 
 PORT = "/dev/tty.usbmodem1101"
 BAUD = 9600
 LOG_BASE = os.path.expanduser("~/Github Repos/AWS-Logs")
 LOG_INTERVAL = 60
 CSV_HEADER = "temp_c,temp_f,pressure_hpa,humidity"
+ARCHIVE_DAYS = 30  # compress weeks older than this
 
 ser = serial.Serial(PORT, BAUD, timeout=1)
 last_git_push_time = None
@@ -191,16 +194,29 @@ def ensure_log_file(path):
         with open(path, "w") as f:
             f.write(CSV_HEADER + "\n")
 
+def log_alert(message):
+    now = datetime.now()
+    year = str(now.year)
+    month = now.strftime("%m_%B")
+    week = f"Week_{now.isocalendar()[1]:02d}"
+    folder = os.path.join(LOG_BASE, year, month, week)
+    os.makedirs(folder, exist_ok=True)
+    alert_file = os.path.join(folder, "ALERTS.log")
+    timestamp = now.isoformat(timespec="seconds")
+    with open(alert_file, "a") as f:
+        f.write(f"{timestamp} {message}\n")
+    print(message)
+
 def log_data(logfile, line):
     timestamp = datetime.now().isoformat(timespec="seconds")
     with open(logfile, "a") as f:
         f.write(f"{timestamp} {line}\n")
-    print(f"[DATA LOGGED] {timestamp} -> {line}")
+    log_alert(f"[DATA LOGGED] {timestamp} -> {line}")
 
 def git_push():
     now = datetime.now()
     if not is_online():
-        print(f"[GIT PUSH SKIPPED] Offline. Will retry at next interval ({now.strftime('%Y-%m-%d %H:%M')})")
+        log_alert(f"[GIT PUSH SKIPPED] Offline. Will retry at next interval ({now.strftime('%Y-%m-%d %H:%M')})")
         return
     try:
         subprocess.run(["git", "-C", LOG_BASE, "add", "."], check=True)
@@ -210,9 +226,9 @@ def git_push():
             f"Automated log update {now.strftime('%Y-%m-%d %H:%M')}"
         ], check=True)
         subprocess.run(["git", "-C", LOG_BASE, "push"], check=True)
-        print(f"[GIT PUSH] Successful at {now.strftime('%Y-%m-%d %H:%M')}")
+        log_alert(f"[GIT PUSH] Successful at {now.strftime('%Y-%m-%d %H:%M')}")
     except subprocess.CalledProcessError as e:
-        print(f"[GIT PUSH ERROR] {e}. Will retry next interval.")
+        log_alert(f"[GIT PUSH ERROR] {e}. Will retry next interval.")
 
 def get_log_path():
     now = datetime.now()
@@ -228,8 +244,40 @@ def next_push_time():
     next_hour = now.hour if now.minute < 30 else (now.hour + 1) % 24
     return now.replace(hour=next_hour, minute=next_minute, second=0, microsecond=0)
 
-print("Weather logger started... Press Ctrl+C to stop.")
-print(f"Next Git push scheduled at: {next_push_time().strftime('%Y-%m-%d %H:%M')}")
+def compress_old_weeks():
+    cutoff = datetime.now() - timedelta(days=ARCHIVE_DAYS)
+    for year in os.listdir(LOG_BASE):
+        year_path = os.path.join(LOG_BASE, year)
+        if not os.path.isdir(year_path):
+            continue
+        for month in os.listdir(year_path):
+            month_path = os.path.join(year_path, month)
+            if not os.path.isdir(month_path):
+                continue
+            for week in os.listdir(month_path):
+                week_path = os.path.join(month_path, week)
+                if not os.path.isdir(week_path):
+                    continue
+                # Determine the latest log date in the week
+                log_dates = [f for f in os.listdir(week_path) if f.endswith(".log")]
+                if not log_dates:
+                    continue
+                # Use the last log date in week to compare with cutoff
+                last_log_file = sorted(log_dates)[-1]
+                try:
+                    last_log_date = datetime.strptime(last_log_file.replace(".log",""), "%Y-%m-%d")
+                except ValueError:
+                    continue
+                if last_log_date < cutoff:
+                    archive_name = week_path + ".tar.gz"
+                    with tarfile.open(archive_name, "w:gz") as tar:
+                        for f in os.listdir(week_path):
+                            tar.add(os.path.join(week_path, f), arcname=f)
+                    shutil.rmtree(week_path)
+                    log_alert(f"[ARCHIVE] Compressed week folder {week_path} -> {archive_name}")
+
+log_alert("Weather logger started... Press Ctrl+C to stop.")
+log_alert(f"Next Git push scheduled at: {next_push_time().strftime('%Y-%m-%d %H:%M')}")
 
 try:
     while True:
@@ -239,6 +287,8 @@ try:
         line = ser.readline().decode("utf-8", errors="ignore").strip()
         if line:
             log_data(logfile, line)
+
+        compress_old_weeks()
 
         now = datetime.now()
         interval_id = now.strftime("%Y-%m-%d_%H_%M")
@@ -252,7 +302,7 @@ try:
             time.sleep(LOG_INTERVAL)
 
 except KeyboardInterrupt:
-    print("\nLogger stopped by user.")
+    log_alert("Logger stopped by user.")
 
 finally:
     ser.close()
