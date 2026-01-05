@@ -1,107 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Portfolio</title>
-  <style>
-    :root {
-      --bg: #ffffff;
-      --fg: #111111;
-      --muted: #666666;
-      --border: #e5e5e5;
-      --accent: #000000;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portfolio</title>
 
-    * {
-      box-sizing: border-box;
-    }
+    <!-- Site styles -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
 
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      line-height: 1.6;
-    }
+  <body>
+    <header>
+      <h1>Project Showcase</h1>
+    </header>
 
-    header {
-      padding: 3rem 1.5rem 2rem;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
+    <main>
+      <section class="projects">
+        <a class="project" href="weather-station.html">
+          <h2>Arduino Weather Station</h2>
+          <p>
+            A simple weather station created with an Arduino UNO, LCD, and
+            BME280 sensor.<br />
+            It works with a host computer to log weather data online
+            automatically.
+          </p>
+        </a>
+      </section>
+    </main>
 
-    h1 {
-      font-size: 2rem;
-      margin: 0 0 0.5rem;
-    }
-
-    p {
-      margin: 0;
-      color: var(--muted);
-    }
-
-    main {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 1.5rem;
-    }
-
-    .projects {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.5rem;
-    }
-
-    .project {
-      border: 1px solid var(--border);
-      padding: 1.25rem;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.15s ease;
-    }
-
-    .project:hover {
-      border-color: var(--accent);
-    }
-
-    .project h2 {
-      font-size: 1.1rem;
-      margin: 0 0 0.5rem;
-    }
-
-    .project p {
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    footer {
-      max-width: 1000px;
-      margin: 3rem auto 2rem;
-      padding: 0 1.5rem;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Project Showcase</h1>
-  </header>
-
-  <main>
-    <section class="projects">
-      <a class="project" href="weather-station.html">
-        <h2>Arduino Weather Station</h2>
-        <p>A simple weather station created with an Arduino UNO, LCD, and BME280 sensor.<br>
-          It works with a host computer to log weather data online automatically.</p>
-      </a>
-    </section>
-  </main>
-
-  <footer>
-    Created by <a href="https://github.com/mr-hazmat">mr-hazmat</a>
-  </footer>
-</body>
+    <footer>
+      Created by
+      <a href="https://github.com/mr-hazmat">mr-hazmat</a>
+    </footer>
+  </body>
 </html>
