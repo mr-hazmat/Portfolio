@@ -167,6 +167,7 @@ import os
 from datetime import datetime
 import subprocess
 import time
+import socket
 
 PORT = "/dev/tty.usbmodem1101"
 BAUD = 9600
@@ -177,42 +178,78 @@ CSV_HEADER = "temp_c,temp_f,pressure_hpa,humidity"
 ser = serial.Serial(PORT, BAUD, timeout=1)
 last_git_push_time = None
 
+def is_online(host="github.com", port=443, timeout=5):
+    try:
+        socket.create_connection((host, port), timeout=timeout)
+        return True
+    except OSError:
+        return False
+
+def ensure_log_file(path):
+    if not os.path.exists(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(CSV_HEADER + "\n")
+
+def log_data(logfile, line):
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    with open(logfile, "a") as f:
+        f.write(f"{timestamp} {line}\n")
+    print(f"[DATA LOGGED] {timestamp} -> {line}")
+
+def git_push():
+    now = datetime.now()
+    if not is_online():
+        print(f"[GIT PUSH SKIPPED] Offline. Will retry at next interval ({now.strftime('%Y-%m-%d %H:%M')})")
+        return
+    try:
+        subprocess.run(["git", "-C", LOG_BASE, "add", "."], check=True)
+        subprocess.run([
+            "git", "-C", LOG_BASE,
+            "commit", "-m",
+            f"Automated log update {now.strftime('%Y-%m-%d %H:%M')}"
+        ], check=True)
+        subprocess.run(["git", "-C", LOG_BASE, "push"], check=True)
+        print(f"[GIT PUSH] Successful at {now.strftime('%Y-%m-%d %H:%M')}")
+    except subprocess.CalledProcessError as e:
+        print(f"[GIT PUSH ERROR] {e}. Will retry next interval.")
+
+def get_log_path():
+    now = datetime.now()
+    year = str(now.year)
+    month = now.strftime("%m_%B")
+    week = f"Week_{now.isocalendar()[1]:02d}"
+    filename = now.strftime("%Y-%m-%d.log")
+    return os.path.join(LOG_BASE, year, month, week, filename)
+
+def next_push_time():
+    now = datetime.now()
+    next_minute = 0 if now.minute < 30 else 30
+    next_hour = now.hour if now.minute < 30 else (now.hour + 1) % 24
+    return now.replace(hour=next_hour, minute=next_minute, second=0, microsecond=0)
+
 print("Weather logger started... Press Ctrl+C to stop.")
+print(f"Next Git push scheduled at: {next_push_time().strftime('%Y-%m-%d %H:%M')}")
 
 try:
     while True:
-        now = datetime.now()
-        year = str(now.year)
-        month = now.strftime("%m_%B")
-        week = f"Week_{now.isocalendar()[1]:02d}"
-        filename = now.strftime("%Y-%m-%d.txt")
-
-        folder = os.path.join(LOG_BASE, year, month, week)
-        os.makedirs(folder, exist_ok=True)
-        logfile = os.path.join(folder, filename)
-
-        if not os.path.exists(logfile):
-            with open(logfile, "w") as f:
-                f.write(CSV_HEADER + "\n")
+        logfile = get_log_path()
+        ensure_log_file(logfile)
 
         line = ser.readline().decode("utf-8", errors="ignore").strip()
         if line:
-            with open(logfile, "a") as f:
-                timestamp = now.isoformat(timespec="seconds")
-                f.write(f"{timestamp} {line}\n")
+            log_data(logfile, line)
 
+        now = datetime.now()
         interval_id = now.strftime("%Y-%m-%d_%H_%M")
         if now.minute % 30 == 0 and interval_id != last_git_push_time:
             last_git_push_time = interval_id
-            subprocess.run(["git", "-C", LOG_BASE, "add", "."])
-            subprocess.run([
-                "git", "-C", LOG_BASE,
-                "commit", "-m",
-                f"Automated log update {now.strftime('%Y-%m-%d %H:%M')}"
-            ])
-            subprocess.run(["git", "-C", LOG_BASE, "push"])
+            git_push()
 
-        time.sleep(LOG_INTERVAL)
+        if now.minute % 30 == 29:
+            time.sleep(1)
+        else:
+            time.sleep(LOG_INTERVAL)
 
 except KeyboardInterrupt:
     print("\nLogger stopped by user.")
