@@ -12,19 +12,29 @@
 <div id="plot" style="width: 100%; height: 600px;"></div>
 
 <script>
-// Helper: pad numbers to 2 digits
+// Compute ISO week number (matches Python isocalendar()[1])
+function getISOWeek(date) {
+    const target = new Date(date.valueOf());
+    const dayNr = (date.getDay() + 6) % 7; // Mon=0..Sun=6
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = new Date(target.getFullYear(),0,4);
+    const diff = target - firstThursday;
+    return 1 + Math.round(diff / (7*24*60*60*1000));
+}
+
+// Pad numbers
 function pad(n) { return n < 10 ? "0" + n : n; }
 
-// Compute GitHub raw URL for today's log
+// Today
 const today = new Date();
 const year = today.getFullYear();
 const monthNum = pad(today.getMonth() + 1);
 const monthName = today.toLocaleString('en-US', { month: 'long' });
-const weekNum = Math.ceil(today.getDate() / 7); // approximate week-of-month
+const weekNum = pad(getISOWeek(today));
 const day = pad(today.getDate());
 
-const logUrl = `https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/logs/${year}/${monthNum}_${monthName}/Week_${weekNum}/` +
-               `${year}-${month}-${day}.log`;
+// Construct GitHub raw URL
+const logUrl = `https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/logs/${year}/${monthNum}_${monthName}/Week_${weekNum}/${year}-${monthNum}-${day}.log`;
 
 console.log("Fetching log from:", logUrl);
 
