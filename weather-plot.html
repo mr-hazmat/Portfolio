@@ -23,7 +23,7 @@ const monthName = today.toLocaleString('en-US', { month: 'long' });
 const weekNum = Math.ceil(today.getDate() / 7); // approximate week-of-month
 const day = pad(today.getDate());
 
-const logUrl = `https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/logs/${year}/${monthNum}_${monthName}/Week_${weekNum}/` +
+const logUrl = `https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/logs/${year}/${monthNum}_${monthName}/Week_${weekNum}/` +
                `${year}-${month}-${day}.log`;
 
 console.log("Fetching log from:", logUrl);
