@@ -12,41 +12,57 @@
 <div id="plot" style="width: 100%; height: 600px;"></div>
 
 <script>
-const csvUrl = "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data.csv";
+// Helper: pad numbers to 2 digits
+function pad(n) { return n < 10 ? "0" + n : n; }
 
-// Fetch CSV and plot
-Plotly.d3.csv(csvUrl, function(err, rows) {
+// Compute GitHub raw URL for today's log
+const today = new Date();
+const year = today.getFullYear();
+const monthNum = pad(today.getMonth() + 1);
+const monthName = today.toLocaleString('en-US', { month: 'long' });
+const weekNum = Math.ceil(today.getDate() / 7); // approximate week-of-month
+const day = pad(today.getDate());
+
+const logUrl = `https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/logs/${year}/${monthNum}_${monthName}/Week_${weekNum}/` +
+               `${year}-${month}-${day}.log`;
+
+console.log("Fetching log from:", logUrl);
+
+Plotly.d3.text(logUrl, function(err, text) {
     if (err) {
-        console.error("Failed to load CSV:", err);
+        console.error("Failed to load .log:", err);
         document.getElementById('plot').innerText = "Failed to load weather data.";
         return;
     }
 
-    // Parse data
-    const timestamps = rows.map(r => r.timestamp);
-    const temp_c = rows.map(r => parseFloat(r.temp_c));
-    const temp_f = rows.map(r => parseFloat(r.temp_f));
-    const pressure = rows.map(r => parseFloat(r.pressure_hpa));
-    const humidity = rows.map(r => parseFloat(r.humidity));
+    const rows = text.trim().split("\n").map(line => {
+        const [timestamp, values] = line.split(" ", 2);
+        if (!values) return null;
+        const [temp_c, temp_f, pressure, humidity] = values.split(",").map(parseFloat);
+        return { timestamp, temp_c, temp_f, pressure, humidity };
+    }).filter(r => r !== null);
 
-    // Prepare traces
+    if (rows.length === 0) {
+        document.getElementById('plot').innerText = "No valid data in .log file.";
+        return;
+    }
+
     const data = [
-        { x: timestamps, y: temp_c, type: 'scatter', mode:'lines+markers', name: 'Temp (°C)' },
-        { x: timestamps, y: temp_f, type: 'scatter', mode:'lines+markers', name: 'Temp (°F)' },
-        { x: timestamps, y: pressure, type: 'scatter', mode:'lines+markers', name: 'Pressure (hPa)' },
-        { x: timestamps, y: humidity, type: 'scatter', mode:'lines+markers', name: 'Humidity (%)' }
+        { x: rows.map(r => r.timestamp), y: rows.map(r => r.temp_c), type: 'scatter', mode: 'lines+markers', name: 'Temp (°C)' },
+        { x: rows.map(r => r.timestamp), y: rows.map(r => r.temp_f), type: 'scatter', mode: 'lines+markers', name: 'Temp (°F)' },
+        { x: rows.map(r => r.timestamp), y: rows.map(r => r.pressure), type: 'scatter', mode: 'lines+markers', name: 'Pressure (hPa)' },
+        { x: rows.map(r => r.timestamp), y: rows.map(r => r.humidity), type: 'scatter', mode: 'lines+markers', name: 'Humidity (%)' }
     ];
 
-    // Layout
     const layout = {
         title: 'Weather Station Data',
         xaxis: { title: 'Timestamp', tickangle: -45 },
         yaxis: { title: 'Values' },
-        legend: { orientation: "h", y: -0.2 },
+        legend: { orientation: 'h', y: -0.2 },
         margin: { t: 50, b: 50, l: 50, r: 50 }
     };
 
-    Plotly.newPlot('plot', data, layout, {responsive: true});
+    Plotly.newPlot('plot', data, layout, { responsive: true });
 });
 </script>
 </body>
