@@ -6,7 +6,6 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-
   <style>
     body {
       text-align: center;
@@ -44,6 +43,46 @@
     canvas {
       cursor: crosshair;
     }
+    .switch {
+  position: relative;
+  display: inline-block;
+  width: 54px;
+  height: 28px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  background-color: #ccc;
+  transition: 0.25s;
+  border-radius: 28px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.25s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #2196f3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
 
   </style>
 </head>
@@ -53,16 +92,14 @@
     <h1>Weather Data</h1>
     <p>Local environmental measurements</p>
 
-    <div class="controls">
-      <label>
-        <input type="checkbox" id="rangeToggle">
-        Show week (unchecked = day)
-      </label>
-      <label>
-        <input type="checkbox" id="unitToggle">
-        Use °F (unchecked = °C)
-      </label>
-    </div>
+<div class="controls">
+  <span>°C</span>
+  <label class="switch">
+    <input type="checkbox" id="unitToggle">
+    <span class="slider"></span>
+  </label>
+  <span>°F</span>
+</div>
 
     <p id="status" aria-live="polite"></p>
 
@@ -162,9 +199,9 @@ function createChart(canvas, label, data, color, yOptions = {}) {
         pointRadius: 0
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
 
       interaction: {
         mode: "nearest",
@@ -185,25 +222,11 @@ function createChart(canvas, label, data, color, yOptions = {}) {
       plugins: {
         tooltip: {
           enabled: true
-        },
-
-        zoom: {
-          zoom: {
-            wheel: { enabled: true },
-            pinch: { enabled: true },
-            mode: "x"
-          },
-          pan: {
-            enabled: true,
-            mode: "x"
-          }
         }
       }
     }
-  });
 
-  /* Double-click / double-tap reset */
-  canvas.addEventListener("dblclick", () => chart.resetZoom());
+  });
 
   return chart;
 }
@@ -275,7 +298,7 @@ el.unitToggle.addEventListener("change", e => {
   state.unit = e.target.checked ? "F" : "C";
   render();
 });
-
+el.unitToggle.checked = state.unit === "F";
 render();
 </script>
 
