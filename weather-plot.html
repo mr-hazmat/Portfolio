@@ -83,7 +83,6 @@
       transform: translateX(24px);
     }
 
-    /* ✅ Correct Chart.js sizing */
     .chart-wrapper {
       width: 66vw;
       height: 380px;
@@ -253,21 +252,21 @@ async function render() {
     tempChart,
     tempLabel,
     clean.map(r => ({ x: r.t, y: r.temp })),
-    "crimson"
+    "red"
   );
 
   charts.pressure = makeChart(
     pressureChart,
     "Pressure (hPa)",
     clean.map(r => ({ x: r.t, y: r.pressure })),
-    "royalblue"
+    "blue"
   );
 
   charts.humidity = makeChart(
     humidityChart,
     "Humidity (%)",
     clean.map(r => ({ x: r.t, y: r.humidity })),
-    "seagreen",
+    "green",
     {
       min: 0,
       max: 100,
