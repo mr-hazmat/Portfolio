@@ -33,13 +33,14 @@
   <div class="controls">
     <label>
       <input type="checkbox" id="rangeToggle">
-      Show week (unchecked = day)
+      <strong>Range:</strong> Day / Week
     </label>
 
     <label>
       <input type="checkbox" id="unitToggle">
-      Use °F (unchecked = °C)
+      <strong>Units:</strong> °C / °F
     </label>
+
   </div>
 
   <p id="status" aria-live="polite"></p>
@@ -127,8 +128,22 @@ function makeChart(canvas, label, data, color, timeUnit, yOptions = {}) {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { type: "time", time: { unit: timeUnit } },
-        y: yOptions
+	   	x: {
+  			type: "time",
+  			time: {
+    				tooltipFormat: state.range === RANGE.DAY ? "HH:mm" : "MMM d",
+    				displayFormats: {
+      					hour: "HH:mm",
+      					day: "MMM d"
+    				}
+        		},
+  			ticks: {
+    				maxRotation: 0,
+    				autoSkip: true
+        		}
+		},
+
+	      	y: yOptions
       }
     }
   });
