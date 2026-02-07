@@ -83,11 +83,16 @@
       transform: translateX(24px);
     }
 
-    canvas {
-      display: block;
-      width: 66vw !important;
-      height: 360px !important;
+    /* ✅ Correct Chart.js sizing */
+    .chart-wrapper {
+      width: 66vw;
+      height: 380px;
       margin: 2.5rem auto;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
     }
   </style>
 </head>
@@ -117,9 +122,17 @@
     </div>
   </div>
 
-  <canvas id="tempChart"></canvas>
-  <canvas id="pressureChart"></canvas>
-  <canvas id="humidityChart"></canvas>
+  <div class="chart-wrapper">
+    <canvas id="tempChart"></canvas>
+  </div>
+
+  <div class="chart-wrapper">
+    <canvas id="pressureChart"></canvas>
+  </div>
+
+  <div class="chart-wrapper">
+    <canvas id="humidityChart"></canvas>
+  </div>
 </div>
 
 <script>
@@ -212,18 +225,29 @@ async function render() {
   const tempLabel = currentUnit === "c" ? "Temperature (°C)" : "Temperature (°F)";
 
   const clean = rows
-    .map(r => ({
-      t: new Date(r.timestamp),
-      temp: parseFloat(r[tempKey]),
-      pressure: parseFloat(r.pressure_hpa),
-      humidity: parseFloat(r.humidity)
-    }))
-    .filter(r =>
-      !Number.isNaN(r.t) &&
-      !Number.isNaN(r.temp) &&
-      !Number.isNaN(r.pressure) &&
-      !Number.isNaN(r.humidity)
-    );
+    .map(r => {
+      const t = new Date(r.timestamp);
+      const temp = parseFloat(r[tempKey]);
+      const pressure = parseFloat(r.pressure_hpa);
+      const humidity = parseFloat(r.humidity);
+
+      if (
+        Number.isNaN(t.getTime()) ||
+        Number.isNaN(temp) ||
+        Number.isNaN(pressure) ||
+        Number.isNaN(humidity)
+      ) {
+        return null;
+      }
+
+      return { t, temp, pressure, humidity };
+    })
+    .filter(Boolean);
+
+  if (clean.length === 0) {
+    console.error("No valid data points to plot");
+    return;
+  }
 
   charts.temp = makeChart(
     tempChart,
