@@ -7,17 +7,17 @@
   <!-- Existing site styling -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Chart.js -->
+  <!-- Chart.js + time adapter -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
   <style>
-    /* Layout polish without fighting your CSS */
     body {
       text-align: center;
     }
 
     .container {
-      max-width: 1100px;
+      max-width: 1400px;
       margin: auto;
       padding: 1.5rem;
     }
@@ -41,7 +41,6 @@
       font-weight: 500;
     }
 
-    /* Toggle switch styling */
     .switch {
       position: relative;
       display: inline-block;
@@ -85,8 +84,10 @@
     }
 
     canvas {
-      margin: 2rem auto;
-      max-width: 100%;
+      display: block;
+      width: 66vw !important;
+      height: 360px !important;
+      margin: 2.5rem auto;
     }
   </style>
 </head>
@@ -97,8 +98,6 @@
   <p>Local environmental measurements</p>
 
   <div class="controls">
-
-    <!-- Day / Week toggle -->
     <div class="toggle-group">
       <span>Day</span>
       <label class="switch">
@@ -108,7 +107,6 @@
       <span>Week</span>
     </div>
 
-    <!-- C / F toggle -->
     <div class="toggle-group">
       <span>°C</span>
       <label class="switch">
@@ -117,7 +115,6 @@
       </label>
       <span>°F</span>
     </div>
-
   </div>
 
   <canvas id="tempChart"></canvas>
@@ -158,17 +155,16 @@ async function loadCSV(url) {
 }
 
 /* ============================
-   CHART HELPERS
+   CHART HELPER
    ============================ */
 
-function makeChart(ctx, label, labels, values, color) {
+function makeChart(ctx, label, points, color, yOptions = {}) {
   return new Chart(ctx, {
     type: "line",
     data: {
-      labels,
       datasets: [{
         label,
-        data: values,
+        data: points,
         borderColor: color,
         borderWidth: 2,
         pointRadius: 0,
@@ -177,11 +173,22 @@ function makeChart(ctx, label, labels, values, color) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: true }
       },
       scales: {
-        x: { ticks: { maxTicksLimit: 10 } }
+        x: {
+          type: "time",
+          time: {
+            unit: currentRange === "day" ? "hour" : "day"
+          },
+          ticks: {
+            autoSkip: true,
+            maxRotation: 0
+          }
+        },
+        y: yOptions
       }
     }
   });
@@ -200,35 +207,48 @@ async function render() {
   clearCharts();
 
   const rows = await loadCSV(DATA_URLS[currentRange]);
-  const labels = rows.map(r => r.timestamp.replace("T", " "));
 
-  const tempKey = currentUnit === "c" ? "temp_c" : "temp_f";
-  const tempLabel = currentUnit === "c"
-    ? "Temperature (°C)"
-    : "Temperature (°F)";
+  const tempKey   = currentUnit === "c" ? "temp_c" : "temp_f";
+  const tempLabel = currentUnit === "c" ? "Temperature (°C)" : "Temperature (°F)";
+
+  const clean = rows
+    .map(r => ({
+      t: new Date(r.timestamp),
+      temp: parseFloat(r[tempKey]),
+      pressure: parseFloat(r.pressure_hpa),
+      humidity: parseFloat(r.humidity)
+    }))
+    .filter(r =>
+      !Number.isNaN(r.t) &&
+      !Number.isNaN(r.temp) &&
+      !Number.isNaN(r.pressure) &&
+      !Number.isNaN(r.humidity)
+    );
 
   charts.temp = makeChart(
-    document.getElementById("tempChart"),
+    tempChart,
     tempLabel,
-    labels,
-    rows.map(r => parseFloat(r[tempKey])),
+    clean.map(r => ({ x: r.t, y: r.temp })),
     "crimson"
   );
 
   charts.pressure = makeChart(
-    document.getElementById("pressureChart"),
+    pressureChart,
     "Pressure (hPa)",
-    labels,
-    rows.map(r => parseFloat(r.pressure_hpa)),
+    clean.map(r => ({ x: r.t, y: r.pressure })),
     "royalblue"
   );
 
   charts.humidity = makeChart(
-    document.getElementById("humidityChart"),
+    humidityChart,
     "Humidity (%)",
-    labels,
-    rows.map(r => parseFloat(r.humidity)),
-    "seagreen"
+    clean.map(r => ({ x: r.t, y: r.humidity })),
+    "seagreen",
+    {
+      min: 0,
+      max: 100,
+      ticks: { callback: v => v + "%" }
+    }
   );
 }
 
@@ -236,12 +256,12 @@ async function render() {
    TOGGLES
    ============================ */
 
-document.getElementById("rangeToggle").addEventListener("change", e => {
+rangeToggle.addEventListener("change", e => {
   currentRange = e.target.checked ? "week" : "day";
   render();
 });
 
-document.getElementById("unitToggle").addEventListener("change", e => {
+unitToggle.addEventListener("change", e => {
   currentUnit = e.target.checked ? "f" : "c";
   render();
 });
