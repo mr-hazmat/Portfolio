@@ -41,6 +41,10 @@
       color: #555;
       font-style: italic;
     }
+    canvas {
+      cursor: crosshair;
+    }
+
   </style>
 </head>
 
@@ -75,168 +79,205 @@
     </div>
   </div>
 
-  <script>
-    "use strict";
+<script>
+"use strict";
 
-    /* -------------------- Constants -------------------- */
-    const RANGE = Object.freeze({ DAY: "day", WEEK: "week" });
-    const UNIT = Object.freeze({ C: "c", F: "f" });
+/* -------------------- Configuration -------------------- */
 
-    const DATA_URLS = {
-      [RANGE.DAY]: "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-day.csv",
-      [RANGE.WEEK]: "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-week.csv"
-    };
+const DATA_URL =
+  "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-week.csv";
 
-    /* -------------------- State -------------------- */
-    const state = { range: RANGE.DAY, unit: UNIT.C };
+const state = { unit: "C" };
+const charts = {};
 
-    const els = {
-      rangeToggle: document.getElementById("rangeToggle"),
-      unitToggle: document.getElementById("unitToggle"),
-      status: document.getElementById("status"),
-      canvases: {
-        temp: document.getElementById("tempChart"),
-        pressure: document.getElementById("pressureChart"),
-        humidity: document.getElementById("humidityChart")
-      }
-    };
+const el = {
+  unitToggle: document.getElementById("unitToggle"),
+  status: document.getElementById("status"),
+  temp: document.getElementById("tempChart"),
+  pressure: document.getElementById("pressureChart"),
+  humidity: document.getElementById("humidityChart")
+};
 
-    let charts = {};
+/* -------------------- Status -------------------- */
 
-    /* -------------------- Utilities -------------------- */
-    function setStatus(message = "", type = "") {
-      els.status.textContent = message;
-      els.status.className = type;
-    }
+function setStatus(msg = "", cls = "") {
+  el.status.textContent = msg;
+  el.status.className = cls;
+}
 
-    async function loadCSV(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch weather data");
+/* -------------------- CSV Loader -------------------- */
 
-      const text = await res.text();
-      const lines = text.trim().split("\n");
-      const headers = lines.shift().split(",").map(h => h.trim());
+async function loadCSV(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch weather data");
 
-      return lines
-        .map(line => {
-          const values = line.split(",").map(v => v.trim());
-          if (values.length !== headers.length) return null;
-          return Object.fromEntries(headers.map((h, i) => [h, values[i]]));
-        })
-        .filter(Boolean);
-    }
+  const text = await res.text();
+  const [header, ...rows] = text.trim().split("\n");
+  const keys = header.split(",").map(h => h.trim());
 
-    function makeChart(canvas, label, data, color, timeUnit, yOptions = {}) {
-      return new Chart(canvas.getContext("2d"), {
-        type: "line",
-        data: {
-          datasets: [{
-            label,
-            data,
-            parsing: false,
-            borderColor: color,
-            borderWidth: 2,
-            pointRadius: 0
-          }]
+  return rows.map(r =>
+    Object.fromEntries(
+      r.split(",").map((v, i) => [keys[i], v.trim()])
+    )
+  );
+}
+
+/* -------------------- Cursor Line Plugin -------------------- */
+
+const verticalCursorLine = {
+  id: "verticalCursorLine",
+  afterDraw(chart) {
+    const tooltip = chart.tooltip;
+    if (!tooltip || !tooltip.getActiveElements().length) return;
+
+    const ctx = chart.ctx;
+    const { top, bottom } = chart.chartArea;
+    const x = tooltip.getActiveElements()[0].element.x;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+Chart.register(verticalCursorLine);
+
+/* -------------------- Chart Factory -------------------- */
+
+function createChart(canvas, label, data, color, yOptions = {}) {
+  const chart = new Chart(canvas, {
+    type: "line",
+    data: {
+      datasets: [{
+        label,
+        data,
+        parsing: false,
+        borderColor: color,
+        borderWidth: 2,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+
+      interaction: {
+        mode: "nearest",
+        intersect: false
+      },
+
+      scales: {
+        x: {
+          type: "time",
+          time: {
+            unit: "day",
+            tooltipFormat: "MMM d HH:mm"
+          }
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              type: "time",
-              time: {
-                tooltipFormat: state.range === RANGE.DAY ? "HH:mm" : "MMM d",
-                displayFormats: { hour: "HH:mm", day: "MMM d" }
-              },
-              ticks: { maxRotation: 0, autoSkip: true }
-            },
-            y: yOptions
+        y: yOptions
+      },
+
+      plugins: {
+        tooltip: {
+          enabled: true
+        },
+
+        zoom: {
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: "x"
+          },
+          pan: {
+            enabled: true,
+            mode: "x"
           }
         }
-      });
-    }
-
-    function clearCharts() {
-      Object.values(charts).forEach(chart => chart.destroy());
-      charts = {};
-    }
-
-    /* -------------------- Rendering -------------------- */
-    async function render() {
-      clearCharts();
-      setStatus("Loading…", "loading");
-
-      try {
-        const rows = await loadCSV(DATA_URLS[state.range]);
-        const timeUnit = state.range === RANGE.DAY ? "hour" : "day";
-
-        const data = rows
-          .map(r => {
-            const t = new Date(r.timestamp);
-            if (Number.isNaN(t.getTime())) return null;
-
-            const tempC = parseFloat(r.temp_c);
-            const tempF = parseFloat(r.temp_f);
-            const temp = state.unit === UNIT.C
-              ? tempC
-              : (Number.isFinite(tempF) ? tempF : tempC * 9 / 5 + 32);
-
-            const pressure = parseFloat(r.pressure_hpa);
-            const humidity = parseFloat(r.humidity);
-
-            if (![temp, pressure, humidity].every(Number.isFinite)) return null;
-            return { t, temp, pressure, humidity };
-          })
-          .filter(Boolean)
-          .sort((a, b) => a.t - b.t);
-
-        if (!data.length) throw new Error("No valid data available");
-
-        charts.temp = makeChart(
-          els.canvases.temp,
-          `Temperature (${state.unit === UNIT.C ? "°C" : "°F"})`,
-          data.map(d => ({ x: d.t, y: d.temp })),
-          "crimson",
-          timeUnit
-        );
-
-        charts.pressure = makeChart(
-          els.canvases.pressure,
-          "Pressure (hPa)",
-          data.map(d => ({ x: d.t, y: d.pressure })),
-          "royalblue",
-          timeUnit
-        );
-
-        charts.humidity = makeChart(
-          els.canvases.humidity,
-          "Humidity (%)",
-          data.map(d => ({ x: d.t, y: d.humidity })),
-          "seagreen",
-          timeUnit,
-          { min: 0, max: 100 }
-        );
-
-        setStatus();
-      } catch (err) {
-        setStatus(err.message, "error");
       }
     }
+  });
 
-    /* -------------------- Events -------------------- */
-    els.rangeToggle.addEventListener("change", e => {
-      state.range = e.target.checked ? RANGE.WEEK : RANGE.DAY;
-      render();
-    });
+  /* Double-click / double-tap reset */
+  canvas.addEventListener("dblclick", () => chart.resetZoom());
 
-    els.unitToggle.addEventListener("change", e => {
-      state.unit = e.target.checked ? UNIT.F : UNIT.C;
-      render();
-    });
+  return chart;
+}
 
-    render();
-  </script>
+/* -------------------- Render -------------------- */
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+}
+
+async function render() {
+  destroyCharts();
+  setStatus("Loading…", "loading");
+
+  try {
+    const rows = await loadCSV(DATA_URL);
+
+    const data = rows
+      .map(r => {
+        const t = new Date(r.timestamp);
+        if (Number.isNaN(t)) return null;
+
+        const tempC = parseFloat(r.temp_c);
+        const temp = state.unit === "C"
+          ? tempC
+          : tempC * 9 / 5 + 32;
+
+        const pressure = parseFloat(r.pressure_hpa);
+        const humidity = parseFloat(r.humidity);
+
+        if (![temp, pressure, humidity].every(Number.isFinite)) return null;
+
+        return { t, temp, pressure, humidity };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.t - b.t);
+
+    charts.temp = createChart(
+      el.temp,
+      `Temperature (°${state.unit})`,
+      data.map(d => ({ x: d.t, y: d.temp })),
+      "crimson"
+    );
+
+    charts.pressure = createChart(
+      el.pressure,
+      "Pressure (hPa)",
+      data.map(d => ({ x: d.t, y: d.pressure })),
+      "royalblue"
+    );
+
+    charts.humidity = createChart(
+      el.humidity,
+      "Humidity (%)",
+      data.map(d => ({ x: d.t, y: d.humidity })),
+      "seagreen",
+      { min: 0, max: 100 }
+    );
+
+    setStatus();
+  } catch (err) {
+    setStatus(err.message, "error");
+  }
+}
+
+/* -------------------- Events -------------------- */
+
+el.unitToggle.addEventListener("change", e => {
+  state.unit = e.target.checked ? "F" : "C";
+  render();
+});
+
+render();
+</script>
+
 </body>
 </html>
-
