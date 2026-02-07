@@ -10,8 +10,16 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
   <style>
-    body { text-align: center; }
-    .container { max-width: 1400px; margin: auto; padding: 1.5rem; }
+    body {
+      text-align: center;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: auto;
+      padding: 1.5rem;
+    }
+
     .controls {
       display: flex;
       justify-content: center;
@@ -19,219 +27,244 @@
       margin: 1.5rem 0 2rem;
       flex-wrap: wrap;
     }
-    .chart-wrapper { width: 66vw; height: 380px; margin: 2.5rem auto; }
-    .error { color: crimson; font-weight: 600; }
-    .loading { color: #555; font-style: italic; }
+
+    .chart-wrapper {
+      width: 66vw;
+      height: 380px;
+      margin: 2.5rem auto;
+    }
+
+    .error {
+      color: crimson;
+      font-weight: 600;
+    }
+
+    .loading {
+      color: #555;
+      font-style: italic;
+    }
   </style>
 </head>
 
 <body>
-<div class="container">
-  <h1>Weather Data</h1>
-  <p>Local environmental measurements</p>
+  <div class="container">
+    <h1>Weather Data</h1>
+    <p>Local environmental measurements</p>
 
-  <div class="controls">
-    <label>
-      <input type="checkbox" id="rangeToggle">
-      <strong>Range:</strong> Day / Week
-    </label>
+    <div class="controls">
+      <label>
+        <input type="checkbox" id="rangeToggle">
+        Show week (unchecked = day)
+      </label>
 
-    <label>
-      <input type="checkbox" id="unitToggle">
-      <strong>Units:</strong> °C / °F
-    </label>
+      <label>
+        <input type="checkbox" id="unitToggle">
+        Use °F (unchecked = °C)
+      </label>
+    </div>
 
+    <p id="status" aria-live="polite"></p>
+
+    <div class="chart-wrapper">
+      <canvas id="tempChart" aria-label="Temperature chart"></canvas>
+    </div>
+
+    <div class="chart-wrapper">
+      <canvas id="pressureChart" aria-label="Pressure chart"></canvas>
+    </div>
+
+    <div class="chart-wrapper">
+      <canvas id="humidityChart" aria-label="Humidity chart"></canvas>
+    </div>
   </div>
 
-  <p id="status" aria-live="polite"></p>
+  <script>
+    "use strict";
 
-  <div class="chart-wrapper">
-    <canvas id="tempChart" aria-label="Temperature chart"></canvas>
-  </div>
-  <div class="chart-wrapper">
-    <canvas id="pressureChart" aria-label="Pressure chart"></canvas>
-  </div>
-  <div class="chart-wrapper">
-    <canvas id="humidityChart" aria-label="Humidity chart"></canvas>
-  </div>
-</div>
+    /* -------------------- Constants -------------------- */
+    const RANGE = Object.freeze({
+      DAY: "day",
+      WEEK: "week"
+    });
 
-<script>
-"use strict";
+    const UNIT = Object.freeze({
+      C: "c",
+      F: "f"
+    });
 
-/* -------------------- Constants -------------------- */
+    const DATA_URLS = {
+      [RANGE.DAY]:
+        "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-day.csv",
+      [RANGE.WEEK]:
+        "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-week.csv"
+    };
 
-const RANGE = Object.freeze({ DAY: "day", WEEK: "week" });
-const UNIT  = Object.freeze({ C: "c", F: "f" });
+    /* -------------------- State -------------------- */
+    const state = {
+      range: RANGE.DAY,
+      unit: UNIT.C
+    };
 
-const DATA_URLS = {
-  [RANGE.DAY]:  "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-day.csv",
-  [RANGE.WEEK]: "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-week.csv"
-};
+    const els = {
+      rangeToggle: document.getElementById("rangeToggle"),
+      unitToggle: document.getElementById("unitToggle"),
+      status: document.getElementById("status"),
+      canvases: {
+        temp: document.getElementById("tempChart"),
+        pressure: document.getElementById("pressureChart"),
+        humidity: document.getElementById("humidityChart")
+      }
+    };
 
-/* -------------------- State -------------------- */
+    let charts = {};
 
-const state = {
-  range: RANGE.DAY,
-  unit: UNIT.C
-};
+    /* -------------------- Utilities -------------------- */
+    function setStatus(message = "", type = "") {
+      els.status.textContent = message;
+      els.status.className = type;
+    }
 
-const els = {
-  rangeToggle: document.getElementById("rangeToggle"),
-  unitToggle: document.getElementById("unitToggle"),
-  status: document.getElementById("status"),
-  canvases: {
-    temp: document.getElementById("tempChart"),
-    pressure: document.getElementById("pressureChart"),
-    humidity: document.getElementById("humidityChart")
-  }
-};
+    async function loadCSV(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch weather data");
 
-let charts = {};
+      const text = await res.text();
+      const lines = text.trim().split("\n");
+      const headers = lines.shift().split(",").map(h => h.trim());
 
-/* -------------------- Utilities -------------------- */
+      return lines
+        .map(line => {
+          const values = line.split(",").map(v => v.trim());
+          if (values.length !== headers.length) return null;
 
-function setStatus(message = "", type = "") {
-  els.status.textContent = message;
-  els.status.className = type;
-}
+          return Object.fromEntries(
+            headers.map((h, i) => [h, values[i]])
+          );
+        })
+        .filter(Boolean);
+    }
 
-async function loadCSV(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch weather data");
+    function makeChart(canvas, label, data, color, timeUnit, yOptions = {}) {
+      return new Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: {
+          datasets: [{
+            label,
+            data,
+            parsing: false,
+            borderColor: color,
+            borderWidth: 2,
+            pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: "time",
+              time: {
+	      	tooltipFormat: state.range === RANGE.DAY ? "HH:mm" : "MMM d",
+		displayFormats: {
+		  hour: "HH:mm",
+		  day: "MMM d"
+		} 
+	      },
+	      ticks: {
+		maxRotation: 0,
+		autoSkip: true
+	      }
+            },
+            y: yOptions
+          }
+        }
+      });
+    }
 
-  const text = await res.text();
-  const lines = text.trim().split("\n");
-  const headers = lines.shift().split(",").map(h => h.trim());
+    function clearCharts() {
+      Object.values(charts).forEach(chart => chart.destroy());
+      charts = {};
+    }
 
-  return lines.map(line => {
-    const values = line.split(",").map(v => v.trim());
-    if (values.length !== headers.length) return null;
-    return Object.fromEntries(headers.map((h, i) => [h, values[i]]));
-  }).filter(Boolean);
-}
+    /* -------------------- Rendering -------------------- */
+    async function render() {
+      clearCharts();
+      setStatus("Loading…", "loading");
 
-function makeChart(canvas, label, data, color, timeUnit, yOptions = {}) {
-  return new Chart(canvas.getContext("2d"), {
-    type: "line",
-    data: {
-      datasets: [{
-        label,
-        data,
-        parsing: false,
-        borderColor: color,
-        borderWidth: 2,
-        pointRadius: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-	   	x: {
-  			type: "time",
-  			time: {
-    				tooltipFormat: state.range === RANGE.DAY ? "HH:mm" : "MMM d",
-    				displayFormats: {
-      					hour: "HH:mm",
-      					day: "MMM d"
-    				}
-        		},
-  			ticks: {
-    				maxRotation: 0,
-    				autoSkip: true
-        		}
-		},
+      try {
+        const rows = await loadCSV(DATA_URLS[state.range]);
+        const timeUnit = state.range === RANGE.DAY ? "hour" : "day";
 
-	      	y: yOptions
+        const data = rows
+          .map(r => {
+            const t = new Date(r.timestamp);
+            if (Number.isNaN(t.getTime())) return null;
+
+            const tempC = parseFloat(r.temp_c);
+            const tempF = parseFloat(r.temp_f);
+            const temp =
+              state.unit === UNIT.C
+                ? tempC
+                : (Number.isFinite(tempF)
+                    ? tempF
+                    : tempC * 9 / 5 + 32);
+
+            const pressure = parseFloat(r.pressure_hpa);
+            const humidity = parseFloat(r.humidity);
+
+            if (![temp, pressure, humidity].every(Number.isFinite)) return null;
+
+            return { t, temp, pressure, humidity };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.t - b.t);
+
+        if (!data.length) throw new Error("No valid data available");
+
+        charts.temp = makeChart(
+          els.canvases.temp,
+          `Temperature (${state.unit === UNIT.C ? "°C" : "°F"})`,
+          data.map(d => ({ x: d.t, y: d.temp })),
+          "crimson",
+          timeUnit
+        );
+
+        charts.pressure = makeChart(
+          els.canvases.pressure,
+          "Pressure (hPa)",
+          data.map(d => ({ x: d.t, y: d.pressure })),
+          "royalblue",
+          timeUnit
+        );
+
+        charts.humidity = makeChart(
+          els.canvases.humidity,
+          "Humidity (%)",
+          data.map(d => ({ x: d.t, y: d.humidity })),
+          "seagreen",
+          timeUnit,
+          { min: 0, max: 100 }
+        );
+
+        setStatus();
+      } catch (err) {
+        setStatus(err.message, "error");
       }
     }
-  });
-}
 
-function clearCharts() {
-  Object.values(charts).forEach(chart => chart.destroy());
-  charts = {};
-}
+    /* -------------------- Events -------------------- */
+    els.rangeToggle.addEventListener("change", e => {
+      state.range = e.target.checked ? RANGE.WEEK : RANGE.DAY;
+      render();
+    });
 
-/* -------------------- Rendering -------------------- */
+    els.unitToggle.addEventListener("change", e => {
+      state.unit = e.target.checked ? UNIT.F : UNIT.C;
+      render();
+    });
 
-async function render() {
-  clearCharts();
-  setStatus("Loading…", "loading");
-
-  try {
-    const rows = await loadCSV(DATA_URLS[state.range]);
-    const timeUnit = state.range === RANGE.DAY ? "hour" : "day";
-
-    const data = rows.map(r => {
-      const t = new Date(r.timestamp);
-      if (Number.isNaN(t.getTime())) return null;
-
-      const tempC = parseFloat(r.temp_c);
-      const tempF = parseFloat(r.temp_f);
-      const temp = state.unit === UNIT.C
-        ? tempC
-        : (Number.isFinite(tempF) ? tempF : tempC * 9 / 5 + 32);
-
-      const pressure = parseFloat(r.pressure_hpa);
-      const humidity = parseFloat(r.humidity);
-
-      if (![temp, pressure, humidity].every(Number.isFinite)) return null;
-
-      return { t, temp, pressure, humidity };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.t - b.t);
-
-    if (!data.length) throw new Error("No valid data available");
-
-    charts.temp = makeChart(
-      els.canvases.temp,
-      `Temperature (${state.unit === UNIT.C ? "°C" : "°F"})`,
-      data.map(d => ({ x: d.t, y: d.temp })),
-      "crimson",
-      timeUnit
-    );
-
-    charts.pressure = makeChart(
-      els.canvases.pressure,
-      "Pressure (hPa)",
-      data.map(d => ({ x: d.t, y: d.pressure })),
-      "royalblue",
-      timeUnit
-    );
-
-    charts.humidity = makeChart(
-      els.canvases.humidity,
-      "Humidity (%)",
-      data.map(d => ({ x: d.t, y: d.humidity })),
-      "seagreen",
-      timeUnit,
-      { min: 0, max: 100 }
-    );
-
-    setStatus();
-
-  } catch (err) {
-    setStatus(err.message, "error");
-  }
-}
-
-/* -------------------- Events -------------------- */
-
-els.rangeToggle.addEventListener("change", e => {
-  state.range = e.target.checked ? RANGE.WEEK : RANGE.DAY;
-  render();
-});
-
-els.unitToggle.addEventListener("change", e => {
-  state.unit = e.target.checked ? UNIT.F : UNIT.C;
-  render();
-});
-
-render();
-</script>
+    render();
+  </script>
 </body>
 </html>
 
