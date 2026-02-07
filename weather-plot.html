@@ -4,60 +4,150 @@
   <meta charset="UTF-8">
   <title>Weather Data</title>
 
+  <!-- Existing site styling -->
   <link rel="stylesheet" href="style.css">
 
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
+    /* Layout polish without fighting your CSS */
+    body {
+      text-align: center;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+
     .controls {
-      margin: 1rem 0;
       display: flex;
-      gap: 1rem;
+      justify-content: center;
+      gap: 2rem;
+      margin: 1.5rem 0 2rem;
       flex-wrap: wrap;
     }
-    button {
-      padding: 0.4rem 0.8rem;
-      cursor: pointer;
+
+    .toggle-group {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 500;
     }
+
+    /* Toggle switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #4caf50;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+
     canvas {
+      margin: 2rem auto;
       max-width: 100%;
-      margin-bottom: 2rem;
     }
   </style>
 </head>
 <body>
 
-<h1>Weather Data</h1>
+<div class="container">
+  <h1>Weather Data</h1>
+  <p>Local environmental measurements</p>
 
-<div class="controls">
-  <button id="dayBtn">Last Day</button>
-  <button id="weekBtn">Last Week</button>
+  <div class="controls">
 
-  <button id="cBtn">°C</button>
-  <button id="fBtn">°F</button>
+    <!-- Day / Week toggle -->
+    <div class="toggle-group">
+      <span>Day</span>
+      <label class="switch">
+        <input type="checkbox" id="rangeToggle">
+        <span class="slider"></span>
+      </label>
+      <span>Week</span>
+    </div>
+
+    <!-- C / F toggle -->
+    <div class="toggle-group">
+      <span>°C</span>
+      <label class="switch">
+        <input type="checkbox" id="unitToggle">
+        <span class="slider"></span>
+      </label>
+      <span>°F</span>
+    </div>
+
+  </div>
+
+  <canvas id="tempChart"></canvas>
+  <canvas id="pressureChart"></canvas>
+  <canvas id="humidityChart"></canvas>
 </div>
 
-<canvas id="tempChart"></canvas>
-<canvas id="pressureChart"></canvas>
-<canvas id="humidityChart"></canvas>
-
 <script>
+/* ============================
+   CONFIG
+   ============================ */
 
 const DATA_URLS = {
-  day:  "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather_last_day.csv",
-  week: "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather_last_week.csv"
+  day:  "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-day.csv",
+  week: "https://raw.githubusercontent.com/mr-hazmat/RPi_Compact-Weather-Station/main/docs/data/weather-last-week.csv"
 };
 
-let currentRange = "day";   // day | week
-let currentUnit  = "c";     // c | f
-
+let currentRange = "day";
+let currentUnit  = "c";
 let charts = {};
 
-async function loadCSV(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to load CSV");
+/* ============================
+   CSV PARSER
+   ============================ */
 
-  const text = await response.text();
+async function loadCSV(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("CSV load failed");
+
+  const text = await res.text();
   const lines = text.trim().split("\n");
   const headers = lines.shift().split(",");
 
@@ -67,22 +157,29 @@ async function loadCSV(url) {
   });
 }
 
-function createLineChart(ctx, label, data, color) {
+/* ============================
+   CHART HELPERS
+   ============================ */
+
+function makeChart(ctx, label, labels, values, color) {
   return new Chart(ctx, {
     type: "line",
     data: {
-      labels: data.labels,
+      labels,
       datasets: [{
         label,
-        data: data.values,
+        data: values,
         borderColor: color,
         borderWidth: 2,
         pointRadius: 0,
-        tension: 0.2
+        tension: 0.25
       }]
     },
     options: {
       responsive: true,
+      plugins: {
+        legend: { display: true }
+      },
       scales: {
         x: { ticks: { maxTicksLimit: 10 } }
       }
@@ -90,60 +187,70 @@ function createLineChart(ctx, label, data, color) {
   });
 }
 
-function destroyCharts() {
-  Object.values(charts).forEach(chart => chart.destroy());
+function clearCharts() {
+  Object.values(charts).forEach(c => c.destroy());
   charts = {};
 }
 
+/* ============================
+   MAIN RENDER
+   ============================ */
+
 async function render() {
-  destroyCharts();
+  clearCharts();
 
   const rows = await loadCSV(DATA_URLS[currentRange]);
-
   const labels = rows.map(r => r.timestamp.replace("T", " "));
 
-  const tempField = currentUnit === "c" ? "temp_c" : "temp_f";
-  const tempLabel = currentUnit === "c" ? "Temperature (°C)" : "Temperature (°F)";
+  const tempKey = currentUnit === "c" ? "temp_c" : "temp_f";
+  const tempLabel = currentUnit === "c"
+    ? "Temperature (°C)"
+    : "Temperature (°F)";
 
-  charts.temp = createLineChart(
+  charts.temp = makeChart(
     document.getElementById("tempChart"),
     tempLabel,
-    {
-      labels,
-      values: rows.map(r => parseFloat(r[tempField]))
-    },
-    "red"
+    labels,
+    rows.map(r => parseFloat(r[tempKey])),
+    "crimson"
   );
 
-  charts.pressure = createLineChart(
+  charts.pressure = makeChart(
     document.getElementById("pressureChart"),
     "Pressure (hPa)",
-    {
-      labels,
-      values: rows.map(r => parseFloat(r.pressure_hpa))
-    },
-    "blue"
+    labels,
+    rows.map(r => parseFloat(r.pressure_hpa)),
+    "royalblue"
   );
 
-  charts.humidity = createLineChart(
+  charts.humidity = makeChart(
     document.getElementById("humidityChart"),
     "Humidity (%)",
-    {
-      labels,
-      values: rows.map(r => parseFloat(r.humidity))
-    },
-    "green"
+    labels,
+    rows.map(r => parseFloat(r.humidity)),
+    "seagreen"
   );
 }
 
-document.getElementById("dayBtn").onclick  = () => { currentRange = "day";  render(); };
-document.getElementById("weekBtn").onclick = () => { currentRange = "week"; render(); };
+/* ============================
+   TOGGLES
+   ============================ */
 
-document.getElementById("cBtn").onclick = () => { currentUnit = "c"; render(); };
-document.getElementById("fBtn").onclick = () => { currentUnit = "f"; render(); };
+document.getElementById("rangeToggle").addEventListener("change", e => {
+  currentRange = e.target.checked ? "week" : "day";
+  render();
+});
+
+document.getElementById("unitToggle").addEventListener("change", e => {
+  currentUnit = e.target.checked ? "f" : "c";
+  render();
+});
+
+/* ============================
+   INIT
+   ============================ */
 
 render();
-
 </script>
 
 </body>
