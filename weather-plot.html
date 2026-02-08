@@ -268,14 +268,16 @@ async function render() {
       el.temp,
       `Temperature (°${state.unit})`,
       data.map(d => ({ x: d.t, y: d.temp })),
-      "crimson"
+      "crimson",
+      { min: -30, max: 120 }
     );
 
     charts.pressure = createChart(
       el.pressure,
       "Pressure (hPa)",
       data.map(d => ({ x: d.t, y: d.pressure })),
-      "royalblue"
+      "royalblue",
+      { min: 900, max:1100 }
     );
 
     charts.humidity = createChart(
