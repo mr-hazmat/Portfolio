@@ -135,6 +135,27 @@ const el = {
   humidity: document.getElementById("humidityChart")
 };
 
+/* -------------------- Chart Min/Max Size --------------------*/
+
+function dynamicRange(values, padding = 0.05, hardMin = null, hardMax = null) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return {};
+
+  const span = max - min || 1; // avoid zero-span
+  let lo = min - span * padding;
+  let hi = max + span * padding;
+
+  if (hardMin !== null) lo = Math.max(lo, hardMin);
+  if (hardMax !== null) hi = Math.min(hi, hardMax);
+
+  return {
+    min: lo,
+    max: hi
+  };
+}
+
 /* -------------------- Status -------------------- */
 
 function setStatus(msg = "", cls = "") {
@@ -269,9 +290,7 @@ async function render() {
       `Temperature (°${state.unit})`,
       data.map(d => ({ x: d.t, y: d.temp })),
       "crimson",
-      { min: 0, max: 100, 
-        ticks: { stepSize: 20 }
-      }
+      dynamicRange(tempValues, 0.1)	
     );
 
     charts.pressure = createChart(
