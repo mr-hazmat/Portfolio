@@ -292,7 +292,7 @@ async function render() {
       `Temperature (°${state.unit})`,
       data.map(d => ({ x: d.t, y: d.temp })),
       "crimson",
-      dynamicRange(tempValues, 0.1)	
+	    { min: 0, max: 120, ticks: { stepSize: 20} }
     );
 
     charts.pressure = createChart(
