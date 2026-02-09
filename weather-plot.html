@@ -269,7 +269,9 @@ async function render() {
       `Temperature (°${state.unit})`,
       data.map(d => ({ x: d.t, y: d.temp })),
       "crimson",
-      { min: -30, max: 120 }
+      { min: 0, max: 100, 
+        ticks: { stepSize: 20 }
+      }
     );
 
     charts.pressure = createChart(
@@ -277,7 +279,9 @@ async function render() {
       "Pressure (hPa)",
       data.map(d => ({ x: d.t, y: d.pressure })),
       "royalblue",
-      { min: 900, max:1100 }
+      { min: 960, max: 1000,
+        ticks: { stepSize: 20 }
+      }
     );
 
     charts.humidity = createChart(
@@ -285,7 +289,9 @@ async function render() {
       "Humidity (%)",
       data.map(d => ({ x: d.t, y: d.humidity })),
       "seagreen",
-      { min: 0, max: 100 }
+      { min: 0, max: 100,
+	ticks: { stepSize: 10 }
+      }
     );
 
     setStatus();
