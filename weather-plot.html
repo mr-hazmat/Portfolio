@@ -285,6 +285,8 @@ async function render() {
       .filter(Boolean)
       .sort((a, b) => a.t - b.t);
 
+    const tempValues = data.map(d => d.temp);
+
     charts.temp = createChart(
       el.temp,
       `Temperature (°${state.unit})`,
