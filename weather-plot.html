@@ -83,7 +83,18 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(26px);
 }
+.stats {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
 
+.stats span {
+  font-weight: 600;
+}
   </style>
 </head>
 
@@ -105,15 +116,19 @@ input:checked + .slider:before {
 
     <div class="chart-wrapper">
       <canvas id="tempChart" aria-label="Temperature chart"></canvas>
+      <div class="stats" id="tempStats"></div>
     </div>
 
     <div class="chart-wrapper">
       <canvas id="pressureChart" aria-label="Pressure chart"></canvas>
+      <div class="stats" id="pressureStats"></div>
     </div>
 
     <div class="chart-wrapper">
       <canvas id="humidityChart" aria-label="Humidity chart"></canvas>
+      <div class="stats" id="humidityStats"></div>
     </div>
+
   </div>
 
 <script>
@@ -161,6 +176,15 @@ function dynamicRange(values, padding = 0.05, hardMin = null, hardMax = null) {
 function setStatus(msg = "", cls = "") {
   el.status.textContent = msg;
   el.status.className = cls;
+}
+
+function minMax(values) {
+  let min = Infinity, max = -Infinity;
+  for (const v of values) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
 }
 
 /* -------------------- CSV Loader -------------------- */
@@ -284,6 +308,30 @@ async function render() {
       })
       .filter(Boolean)
       .sort((a, b) => a.t - b.t);
+
+      /* ---------- Min / Max Stats ---------- */
+
+      // Temperature
+      const temps = data.map(d => d.temp);
+      const t = minMax(temps);
+      document.getElementById("tempStats").innerHTML =
+        `<span>Min: ${t.min.toFixed(1)}°${state.unit}</span>
+         <span>Max: ${t.max.toFixed(1)}°${state.unit}</span>`;
+
+      // Pressure
+      const pressures = data.map(d => d.pressure);
+      const p = minMax(pressures);
+      document.getElementById("pressureStats").innerHTML =
+        `<span>Min: ${p.min.toFixed(1)} hPa</span>
+         <span>Max: ${p.max.toFixed(1)} hPa</span>`;
+
+      // Humidity
+      const humidities = data.map(d => d.humidity);
+      const h = minMax(humidities);
+      document.getElementById("humidityStats").innerHTML =
+        `<span>Min: ${h.min.toFixed(0)}%</span>
+         <span>Max: ${h.max.toFixed(0)}%</span>`;
+
 
     const tempValues = data.map(d => d.temp);
 
